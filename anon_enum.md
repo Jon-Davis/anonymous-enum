@@ -112,8 +112,8 @@ ___
 ## Alternatives
 
 ### Union Type
-The union type would exhibit behavior similar to that of TypeScript's union while having a implementation similar to a discriminated union. The union would be implicitly flattened, order independent, and equivalent to all other unions with the same variants, and they would exclusively use type matching post-monomorphization. This approach has challenges, a complicated generic match can create ambiguous behavior to the user. Multiple variants with the same type but different lifetimes would be collapsed. 
+The union type would exhibit behavior similar to that of TypeScript's union while having an implementation similar to a discriminated union. The union would be implicitly flattened, order independent, and equivalent to all other unions with the same variants, and they would exclusively use type matching post-monomorphization. This approach has challenges, a complicated generic match can create ambiguous behavior to the user. Multiple variants with the same type but different lifetimes would be collapsed. 
 ___
 ## Unresolved Questions
-- Should anonymous enums even allow multiples of the same pre-monomorphic type: `enum(A, A)`. They are effectively useless.
+- Should anonymous enums even allow multiple of the same top level pre-monomorphic type: `enum(A, A)`. They are effectively useless.
 - Should coercion into anonymous enums be implicit? Should coercion between anonymous enums be implicit? Should a keyword `become` or `as` be used?
