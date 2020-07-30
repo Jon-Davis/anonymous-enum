@@ -101,7 +101,7 @@ match matchable {   // match matchable
 ___
 ### Traits
 
-Anonymous enums will implicitly derive traits if all variants implement a common trait. To achieve this an analogue to object safe traits will be introduced: "product safe traits". These will be traits that can be implemented implicitly on an anonymous enum if all variants implement the trait. Traits related to error handling such as: Debug, Display, Error, and later Termination, are specifically important for anonymous Enums, as a primary use case will be propagating errors.
+Anonymous enums will implicitly derive traits if all variants implement a common trait. To achieve this an analogue to object safe traits will be introduced: "product safe traits". These will be traits that can be implemented implicitly on an anonymous enum if all variants implement the trait. Traits related to error handling such as: Debug, Display, and Error are specifically important for anonymous Enums, as a primary use case will be propagating errors.
 ___
 ## Prior Art
 The following were explicitly brought up during the work shop of the above proposal.
