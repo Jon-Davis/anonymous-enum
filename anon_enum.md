@@ -1,7 +1,7 @@
 # Anonymous Enums
 Anonymous enums would be a new primitive type added to the rust programing language. Work shopped in this [internals.rust-lang.org](https://internals.rust-lang.org/t/ideas-around-anonymous-enum-types/12627) thread.
 
-## Summary
+## Core Proposal
 
 ### Strongly Typed
 Anonymous Enums are strongly typed. They will not have any implicit flattening or order independence.
@@ -65,7 +65,6 @@ enum(T, u8) <- enum(u8, (u8, T))
 ```
 ___
 ### Generics
-
 Anonymous enums determine the variant of an assignment or type match before monomorphization. This means
 - Variant assignments are consistent across generic implementations
 - Generics will never be collapsed into a different variant based on their actual type
@@ -82,7 +81,6 @@ match anon_enum { // match anon_enum {
 ```
 ___
 ### Type Matching
-
 Anonymous enums have type matching as syntactic sugar to index matching. The logic used to describe the mapping of one anonymous enum coercing into another is the same logic used to describe the mapping of anonymous enum variants and a type match expression branches. 
 ```rust
 // Consider the following valid coercion
@@ -99,13 +97,14 @@ match matchable {   // match matchable
 }                   // }
 ```
 ___
-### Traits
 
+### Traits
 Anonymous enums will implicitly derive traits if all variants implement a common trait. To achieve this an analogue to object safe traits will be introduced: "product safe traits". These will be traits that can be implemented implicitly on an anonymous enum if all variants implement the trait. Traits related to error handling such as: Debug, Display, and Error are specifically important for anonymous Enums, as a primary use case will be propagating errors.
 ___
+
 ## Prior Art
 The following were explicitly brought up during the work shop of the above proposal.
-- **C++ Variant:** The [std::variant](https://en.cppreference.com/w/cpp/utility/variant) is a similar implementation that uses both type and indexed based matching. Like anonymous enum's the variant is a discriminated union
+- **C++ Variant:** The [std::variant](https://en.cppreference.com/w/cpp/utility/variant) is a similar implementation that uses both type and indexed based matching. Like anonymous enums, the variant is a discriminated union
 - **TypeScript Union:** The [Union](https://www.typescriptlang.org/docs/handbook/advanced-types.html#union-types) is conceptually similar, but in implementation is quite different. The union is essentially a reference to a heap allocated object that is downcast into a type.
 - **Anonymous Variant RFC**: This [RFC](https://github.com/eaglgenes101/rfcs/blob/2c8e89811a64b139a62d199c5f8e5bd3e852102c/text/0000-anonymous-variants.md) by eaglegenes101 also proposed an indexed based discriminant union type for rust.
 ___
@@ -115,5 +114,42 @@ ___
 The union type would exhibit behavior similar to that of TypeScript's union while having an implementation similar to a discriminated union. The union would be implicitly flattened, order independent, and equivalent to all other unions with the same variants, and they would exclusively use type matching post-monomorphization. This approach has challenges, a complicated generic match can create ambiguous behavior to the user. Multiple variants with the same type but different lifetimes would be collapsed. 
 ___
 ## Unresolved Questions
-- Should anonymous enums even allow multiple of the same top level pre-monomorphic type: `enum(A, A)`. They are effectively useless.
-- Should coercion into anonymous enums be implicit? Should coercion between anonymous enums be implicit? Should a keyword `become` or `as` be used?
+- Should coercion into anonymous enums be implicit? Should coercion between anonymous enums be implicit? Should a keyword become or as be used?
+## Additional Proposals
+The following proposals were discussed during the work shop and create additional functionality. They may be apart of an initial implementation, but are capable of being added later. In order of discussion:
+
+### Impl Trait 
+Since anonymous enums implement all product safe traits, an extension to the impl Trait functionality could be added to support returning anonymous enums as interfaces. 
+```rust
+// Returns enum(slice::Iter, Rev<slice::Iter>)
+fn create_iterator<T>(vec: &Vec<T>, direction: Direction) -> impl Iterator<Item=T> {
+    match direction {
+        Direction::Forward => vec.iter(),
+        Direction::Backward => vec.iter().rev(),
+    }
+}
+```
+___
+### Variadic Enums  
+Variadic enums would allow the declaration of anonymous enums with variable abstract concrete variants. They would likely be accompanied by Trait Matching, which would match on all top level pre-monomorphic types guaranteed to have that trait, recursing on anonymous enum variants.
+```rust
+// Returns enum(slice::Iter, Rev<slice::Iter>)
+fn create_iterator<T>(vec: &Vec<T>, direction: Direction) -> enum(...Iterator<Item=T>) {
+    match direction {
+        Direction::Forward => vec.iter(),
+        Direction::Backward => vec.iter().rev(),
+    }
+}
+
+// a : (u8, String, i32)
+let a : (...Numeric, ...Display);
+a = 5u8;
+a = String::from("Hello World")
+a = -5i32;
+```
+___
+### Variant Enums
+Variant enums would be like a tuple struct, but for anonymous enums.
+```rust
+enum Variant(f32, f64);
+```
