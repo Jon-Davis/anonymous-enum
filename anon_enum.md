@@ -1,107 +1,202 @@
-# Anonymous Enums
-Anonymous enums would be a new primitive type added to the rust programing language. Work shopped in this [internals.rust-lang.org](https://internals.rust-lang.org/t/ideas-around-anonymous-enum-types/12627) thread.
+# Summary
+Add the anonymous enum type. Anonymous Enums would have a relation to Enums similar to Tuples relationship to structs.
 
-## Core Proposal
+# Motivation 
 
-### Strongly Typed
-Anonymous Enums are strongly typed. They will not have any implicit flattening or order independence.
-- `enum(A, B) != enum(B,A)` 
--  `enum(A, A) != A`
-___
-### Matching
-The core matching would be index based, and use a syntax familiar with tuples.
+This is not the first proposal of an Anonymous Enum like feature. Both anonymous enums and Union like RFCs have been proposed in the past, but none of these RFCS have been approved for implementation. In general the union like RFCs face challenges due to an explosion of edge cases revolving around lifetimes and generic code. While the enum like RFCs face criticism about the ergonomics as they fall behind those of the union RFCs. In order for one of these RFCs to make ground, either the union like RFCs need to solve the handling of generic and lifetime edge cases, or an anonymous enum proposal needs to match the ergonomics of a union. This proposal aims to address the later challenge.
+
+Anonymous Enums at their core are simple, they are strongly typed, they have indexed variants, and variants are accessed through index matching. But they serve as a foundation for more advanced features such as Type and Trait matching syntactic sugar that desugars to index matching. As well as coercion to transform one anonymous enum into another.
+
+With the resiliency of indexed variants and the ergonomics of type matching you would be able to write error handling code like this.
 ```rust
-let anon_enum3 : enum(A, (B, C)) = ...;
-match anon_enum3 {
-    0(a) => ...,
-    1.0(b) => ...,
-    1.1(c) => ..., 
+// Returns enum(io::Error, ParseIntError)
+fn int_from_file() -> Result<i32, enum impl Error> {
+    let mut file = File::open(file_name)?; // Can produce io::Error
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?; // Can produce io::Error
+    let output = i32::from_str_radix(&contents, 10)?; // Can produce ParseIntError
+    Ok(output)
+}
+
+// Type and Trait matching
+match int_from_file() {
+    Ok(i) => ... 
+    Err(io : IoError) => ...;           // Type Match
+    Err(parse: ParseIntError) => ...;   // Type Match
+    Err(e : impl Error) => ...;         // Trait Match
 }
 ```
-Type matching would be syntactic sugar of indexed matching and would match on the local types before monomorphization.
+
+# Explanation
+## Index level syntax
+Anonymous Enums are enums without a type name or variant names. They are declared using the `enum` keyword followed by the variant types, separated by commas. Dot syntax similar to tuples are used to specify a variant. If the type or position can be inferred they can be omitted.
 ```rust
-let anon_enum : enum(u8, T) = ...;
-match anon_enum { // match anon_enum {
-   a  u8 => ...;  //     0(a) => ...;
-   b: T => ...;   //     1(b) => ...;
-}                 // }
-``` 
-___
-### Assignments
-- Assignments would be made based on the local types before monomorphization. 
-- Only a top level Type on the lhs can be assigned. 
-- Assignments must be unambiguous. (No two top level variants of the same type)
-```rust
-// Example 1: Simple Case (a : A)
-let _: enum(u8, u16) = 0u8; // Ok assigned to 0
-let _: enum(u8, u8) = 0u8;  // Err ambiguous assignment 
+// Declare an anonymous enum
+let mut x : enum(i32, bool);
+// a full path example of coercing a type into an enum
+x  = false as enum(i32, bool).1;
+// Type can be inferred
+x = true as enum.1;
+// So can position when the value is a unambiguous top level variant type
+x = 1i32 as enum
 
-// Example 2: Top Level assignment 
-let _: enum(u8, enum(u8, u16)) = 1u8;                   // Ok assigned to 0
-let _: enum(u8, enum(u8, u16)) = 1u8 as enum(u8, u16);  // Ok assigned to 1.0
-
-// Example 3: Generic (t : T)
-let _: enum(u8, T) = 0u8; // Ok assigned to 0 regardless of T
-let _: enum(u8, T) = t;   // Ok assigned to 1 regardless of T
-```
-___
-### Coercion and Normalization 
-Anonymous enums can be coerced into different anonymous enums so long as every variant on the top level of the rhs can be assigned to the lhs. 
-
-If a variant of the rhs is an anonymous enum that is not a top level variant of the lhs, the coercion will recurse on the variant.
-
-Like Assignments, The coercion is done on local types before monomorphization.
-
-Expected behavior:
-```rust
-// Basic examples
-enum(u8, u16, u32) <- enum(u16, u32, u8);       // Reordering
-enum(u8, u16, u32) <- enum(u8, enum(u16, u32)); // Flattening
-enum(u8, u16) <- enum(u8, u8, u16);             // Collapsing
-enum(u16, u8) <- enum(u8, enum(u8, u16));       // All 3
-
-// Generic example (0: T, 1: u8) - Regardless of T 
-enum(T, u8) <- enum(u8, (u8, T)) 
-```
-___
-### Generics
-Anonymous enums determine the variant of an assignment or type match before monomorphization. This means
-- Variant assignments are consistent across generic implementations
-- Generics will never be collapsed into a different variant based on their actual type
-
-```rust
-// This will always assign t to the second variant
-let anon_enum : enum(u8, T) = t as T;
-
-// This will always run the second branch if anon_enum was T
-match anon_enum { // match anon_enum {
-   a  u8 => ...;  //     0(a) => ...;
-   b: T => ...;   //     1(b) => ...;
+// Index matching can infer type based on the type it is matching
+match x {
+    enum.0(val) => assert_eq!(val, 1i32),
+    enum.1(_) => unreachable!("Value was set to the first variant")
 }
 ```
-___
-### Type Matching
-Anonymous enums have type matching as syntactic sugar to index matching. The logic used to describe the mapping of one anonymous enum coercing into another is the same logic used to describe the mapping of anonymous enum variants and a type match expression branches. 
+## Coercion
+Anonymous Enums would make use of coercion for ergonomics, but the coercions would still be explicit. There are two types of coercions: assignment and transformation. Coercions are triggered by `as enum`. The type and position will be inferred unless specified.
+
+For assignment coercion to occur, There must be one and only one variant with a pre-monomorphic top level type equal to the type being coerced. This coercion would serve the common case of taking a type and moving it into an anonymous enum.
 ```rust
-// Consider the following valid coercion
-enum(u16, u8) <- enum(u8, enum(u8, u16));
-
-// Since the coercion is valid, so too is this match
-let matchable : enum(u8, enum(u8, u16));
-
-// The mapping is many to one, so branches may match on multiple variants.
-// The u8 branch will match on either of the u8 variants.
-match matchable {   // match matchable
-    s: u16 => ..,   //     1.1(s) => ...
-    b: u8 => ...,   //     0(b) | 1.0(b) => ...
-}                   // }
+// Ok, the first variant is assigned
+let y = i32 as enum(i32, u32);
+// Error ambiguous assignment, specify a position
+let y = i32 as enum(i32, i32);
+// Error no top level variant of type i32, specify a position
+let z = i32 as enum(u32, enum(i32, bool));
 ```
-___
+A Transformation coercion occurs when converting from one anonymous enum into another. The coercion is valid if all variants of the right hand side can be coerced into a variant on the left hand side. If a variant of the right hand side is an enum not present on the left hand side, the coercion will recurse. This recursion allows for the flattening of enums. Transformation coercion would commonly be used to flatten or expand enums as they propagate upwards.
+```rust
+// This is an example of 2 enums that coerce into a larger enum
+fn failable() -> Result<_, enum(io::Error, sql::Error, http::Error, ParseIntError)> {
+    if random() {
+        int_from_file() as enum // returns enum(io::Error, ParseIntError)
+    } else {
+        int_from_db() as enum // returns enum(sql::Error, http::Error)
+    }
+}
 
-### Traits
-Anonymous enums will implicitly derive traits if all variants implement a common trait. To achieve this an analogue to object safe traits will be introduced: "product safe traits". These will be traits that can be implemented implicitly on an anonymous enum if all variants implement the trait. Traits related to error handling such as: Debug, Display, and Error are specifically important for anonymous Enums, as a primary use case will be propagating errors.
-___
+// The ? operator would also perform these coercions 
+fn failable() -> Result<_, enum(io::Error, sql::Error, http::Error, ParseIntError)> {
+    if random() {
+        int_from_file()? // returns enum(io::Error, ParseIntError)
+    } else {
+        int_from_db()? // returns enum(sql::Error, http::Error)
+    }
+}
+```
+Coercions would make assignments based on the pre-monomorphic types. This means that assignments would be  consistent regardless of the concrete type of generics. This is to ensure that a value assigned in a generic context will never collapse a generic type into a concrete type or vise versa.
+```rust
+let t : T = ...
+let mut u8_or_t : enum(u8, T);
+u8_or_t = 5u8 as enum; // Always gets assigned to variant 0, regardless of T's type
+u8_or_t = t as enum; // Always gets assigned to variant 1, regardless of T's type
 
+// The same pre-monomorphic assignment logic applies to transformation
+// coercion. u8 always maps to u8, and T always maps to T, regardless of T's type
+let u8_or_t_or_i32 : enum(u8, T, i32) = u8_or_t as enum;
+```
+When performing a transformation coercion, it is possible to coerce multiple variants of the same type into one. However the resulting type will have the minimum lifetime.
+```rust
+let lifetimes : enum(&'a u32, &'b u32, bool);
+let merged : enum(&'c u32, bool) = lifetimes as enum;
+
+`c <= `a 
+`c <= `b
+```
+## Type Matching
+Type matching would be syntactic sugar over an index match. Types are mapped to indexes before monomorphization. This is to prevent situations where a generic type is the same as a non generic type and the branch arms would conflict. Only top level types are considered for type matching. If multiple top level variants have the same type, the branch is duplicated for each variant.
+
+The syntax for a type match branch would be the variable name, followed by a colon, followed by the local pre-monomorphic top level type of the enum being matched.
+```rust
+// Type matching
+let err : enum(io::Error, parse::Error, E, E) = ...
+match err {
+    io : IoError => Expr1;
+    parse: ParseIntError => Expr2;
+    e : E => Expr3;
+}
+```
+The above type match would be desugared into the following index match syntax.
+```rust
+// Type matching
+let err : enum(io::Error, parse::Error, E) = ...
+match x {
+    enum.0(io) => Expr1;
+    enum.1(parse) => Expr2;
+    enum.2(e) => Expr3;
+    enum.3(e) => Expr3;
+}
+```
+Because assignment coercion and type matching both operate on pre-monomorphic types, assigning a value to err with a type of E will result in Expr3 being run, regardless if E happens to be an io::Error or ParseIntError. The reason this is important is that a generic variant wouldn't be cast on a concrete type, and a concrete type wouldn't be cast to a variant. This is especially important when the generic type and the concrete type are defined with different lifetimes.
+
+## Trait Matching
+Trait matching would be syntactic sugar over an index match. Like coercion and type matching, traits are mapped to indexes before monomorphization. This means a generic type will need to be bound to the trait in order for the match to occur.
+
+The syntax for a trait match branch would be the variable name, followed by a colon, followed by impl Trait.
+```rust
+// Type matching
+let err : enum(io::Error, parse::Error, E) = ...
+match err {
+    err : impl Error => Expr1
+    e : E => Expr2; // E is not guaranteed to implement Error
+}
+```
+The above type match would be desugared into the following index match syntax.
+```rust
+// Type matching
+let err : enum(io::Error, parse::Error, E) = ...
+match x {
+    enum.0(err) => Expr1;
+    enum.1(err) => Expr1;
+    enum.2(e) => Expr2;
+}
+```
+## Mix and Matching
+Since type matching and trait matching are just syntactic sugar of index matching, all 3 can be used in the same match expression. This serves the case when an error is returned, and specific errors need to be handled, but other errors can simply be logged or otherwise generically handled.
+```rust
+fn failable() -> Result<_, enum(io::Error, sql::Error, http::Error, ParseIntError)>;
+match failable(){
+    Ok(_) => Expr0,
+    Err(io : io::Error) => Expr1,    // Type match
+    Err(http : http::Error) => Expr2,// Type match
+    Err(e : impl Error) => Expr3,    // Trait match
+}
+```
+This would desugar into the following index match
+```rust
+fn failable() -> Result<_, enum(io::Error, sql::Error, http::Error, ParseIntError)>;
+match failable(){
+    Ok(_) => Expr0,
+    Err(enum.1(io)) => Expr1,    
+    Err(enum.3(http)) => Expr2,  
+    Err(enum.2(e)) => Expr3, 
+    Err(enum.4(e)) => Expr3, 
+}
+```
+## Enum Impl Trait
+In many instances enums would be used in the return path, and new types will be added as Errors propagate up the stack. Additionally a change in a lower called function would require a change in signature in all functions that propagate the enum. To handle these cases an extension and addition to the impl trait feature would be added. The enum impl trait return type would allow the compiler to return a normalized enum consisting of all assigned types. 
+
+All enum impl traits would also be non-exhaustive. This would require the user to perform a trait match on the enum to handle a later change in signature. 
+```rust
+// This function header 
+fn failable() -> Result<_, enum(io::Error, sql::Error, http::Error, ParseIntError)>;
+// Would become this
+fn failable() -> Result<_, enum impl Error>;
+```
+## Putting it all together
+The proposal would result in error handling code that uses a pattern similar to those used in Java while codifying practices that are already used in rust. Rather than creating and mapping custom enums, anonymous enums can be used quickly and conveniently. This also creates a match syntax, that would be familiar to those why have used exceptions. The enum impl trait would ensure that if new Errors are created by the function or any of it's dependencies, callers would not have to change 
+```rust
+// Returns enum(io::Error, ParseIntError)
+fn int_from_file() -> Result<i32, enum impl Error> {
+    let mut file = File::open(file_name)?; // Can produce io::Error
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?; // Can produce io::Error
+    let output = i32::from_str_radix(&contents, 10)?; // Can produce ParseIntError
+    Ok(output)
+}
+
+// Type and Trait matching
+match int_from_file() {
+    Ok(i) => ...                        // Happy Match
+    Err(io : IoError) => ...;           // Specific Error Match
+    Err(parse: ParseIntError) => ...;   // Specific Error Match
+    Err(e : impl Error) => ...;         // Catch-all Error Match
+}
+```
 ## Prior Art
 The following were explicitly brought up during the work shop of the above proposal.
 - **C++ Variant:** The [std::variant](https://en.cppreference.com/w/cpp/utility/variant) is a similar implementation that uses both type and indexed based matching. Like anonymous enums, the variant is a discriminated union
@@ -112,44 +207,6 @@ ___
 
 ### Union Type
 The union type would exhibit behavior similar to that of TypeScript's union while having an implementation similar to a discriminated union. The union would be implicitly flattened, order independent, and equivalent to all other unions with the same variants, and they would exclusively use type matching post-monomorphization. This approach has challenges, a complicated generic match can create ambiguous behavior to the user. Multiple variants with the same type but different lifetimes would be collapsed. 
-___
-## Unresolved Questions
-- Should coercion into anonymous enums be implicit? Should coercion between anonymous enums be implicit? Should a keyword become or as be used?
-## Additional Proposals
-The following proposals were discussed during the work shop and create additional functionality. They may be apart of an initial implementation, but are capable of being added later. In order of discussion:
 
-### Impl Trait 
-Since anonymous enums implement all product safe traits, an extension to the impl Trait functionality could be added to support returning anonymous enums as interfaces. 
-```rust
-// Returns enum(slice::Iter, Rev<slice::Iter>)
-fn create_iterator<T>(vec: &Vec<T>, direction: Direction) -> impl Iterator<Item=T> {
-    match direction {
-        Direction::Forward => vec.iter(),
-        Direction::Backward => vec.iter().rev(),
-    }
-}
-```
-___
-### Variadic Enums  
-Variadic enums would allow the declaration of anonymous enums with variable abstract concrete variants. They would likely be accompanied by Trait Matching, which would match on all top level pre-monomorphic types guaranteed to have that trait, recursing on anonymous enum variants.
-```rust
-// Returns enum(slice::Iter, Rev<slice::Iter>)
-fn create_iterator<T>(vec: &Vec<T>, direction: Direction) -> enum(...Iterator<Item=T>) {
-    match direction {
-        Direction::Forward => vec.iter(),
-        Direction::Backward => vec.iter().rev(),
-    }
-}
-
-// a : (u8, String, i32)
-let a : (...Numeric, ...Display);
-a = 5u8;
-a = String::from("Hello World")
-a = -5i32;
-```
-___
-### Variant Enums
-Variant enums would be like a tuple struct, but for anonymous enums.
-```rust
-enum Variant(f32, f64);
-```
+### Deref type matching
+Currently the most convenient way to propagate multiple errors is by creating a boxed trait object. This does require an allocation and downcasts to perform specific error handling based on type. But type matching could instead be sugar for downcast_ref. 
