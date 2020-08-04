@@ -35,15 +35,14 @@ let some_data = vec![
 ];
 let new_data: Vec<usize> = some_data
     .iter()
-    .map(|line| -> enum impl Iterator {
+    .flat_map(|line| -> enum impl Iterator {
         // This will create an iterator from the union of two different itertor types
         if some_condition {
             line.iter() as enum
         } else {
-            line.iter().rev as enum
+            line.iter().rev() as enum
         }
     })
-    .flat_map()
     .collect();
 
 // if some_condition is true,
