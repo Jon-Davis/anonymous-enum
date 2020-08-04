@@ -27,6 +27,31 @@ match int_from_file() {
 }
 ```
 
+It is also possible to merge multiple types that implements the same trait into a new one.
+```rust
+let some_data = vec![
+    vec![1, 2, 3],
+    vec![4, 5, 6],
+];
+let new_data: Vec<usize> = some_data
+    .iter()
+    .map(|line| -> enum impl Iterator {
+        // This will create an iterator from the union of two different itertor types
+        if some_condition {
+            line.iter() as enum
+        } else {
+            line.iter().rev as enum
+        }
+    })
+    .flat_map()
+    .collect();
+
+// if some_condition is true,
+// new_data == vec![1, 2, 3, 4, 5, 6]
+// otherwise
+// new_data == vec![3, 2, 1, 6, 5, 4]
+```
+
 # Explanation
 ## Index level syntax
 Anonymous Enums are enums without a type name or variant names. They are declared using the `enum` keyword followed by the variant types, separated by commas. Dot syntax similar to tuples are used to specify a variant. If the type or position can be inferred they can be omitted.
