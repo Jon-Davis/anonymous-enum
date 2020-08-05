@@ -201,6 +201,46 @@ fn failable() -> Result<_, enum(io::Error, sql::Error, http::Error, ParseIntErro
 // Would become this
 fn failable() -> Result<_, enum impl Error>;
 ```
+
+When using `Result<_, enum impl Error>` as a better equivalent of typed exception, it would be useful to be able to:
+- modify any leaf of the call-chain without having to modify all the caller (like unchecked exception)
+- match exaustively on all concrete types
+
+In order to satisfy both of those needs, it should be possible to coherce an `enum impl Trait` into `enum (T, U, V)` with `T`, `U` and `V` the complete set of types contained in the enum. Doing so would generally be done on the return type of externally visible `pub` functions, and in `match` expression.
+
+Since the concrete types of the variant would not appear in the type declaration (`enum impl Error`) or only partially (`enum (io::Error, ..) impl Error`), being able to transform an `enum impl Trait` into `enum (T, U, V)` requires a global analysis of the program. In order to limit the size of such analysis, such conversion cannot be done across crate boundary.
+
+```rust
+fn failable() -> Result<_, enum(io::Error, sql::Error, http::Error, ParseIntError)>;
+fn call_failable() -> Result<_, enum impl Error> {
+    match failable() {
+        Err(parse_error: ParseIntError) => {
+            // this error is not propagated
+        },
+        // non exaustive match, new error can be added to `failable()` without having to modify `call_failable()`
+        Err(error: Error) => {
+            return Err(error) // propagate the error
+        },
+        Ok(ok) => ...,
+    };
+    
+    // ...
+}
+fn usage() {
+    match call_failable() {
+        // exaustive match, no `Err(_: Error)` case
+        Err(io: io::Error) => ...,
+        Err(sql: sql::Error) => ...,
+        Err(http: http::Error) => ...,
+        Ok(ok) => ...,
+    }
+}
+```
+
+- Removing `sql::Error` from the anonymous enum returned by `failable` would requires to update `usage()` but not `call_failable()` since the later only forwards the error returned by `failable()` in an opaque way.
+- Likewise adding a new error in the anonymous enum returned by `failable()` only requires to update `usage()` and not `call_failable()`.
+- Removing `ParseIntError` from `failable()` would requires to update `call_failable()` since there is a partial match on this variant.
+
 ## Putting it all together
 The proposal would result in error handling code that uses a pattern similar to those used in Java while codifying practices that are already used in rust. Rather than creating and mapping custom enums, anonymous enums can be used quickly and conveniently. This also creates a match syntax, that would be familiar to those why have used exceptions. The enum impl trait would ensure that if new Errors are created by the function or any of it's dependencies, callers would not have to change 
 ```rust
