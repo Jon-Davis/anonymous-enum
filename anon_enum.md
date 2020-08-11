@@ -109,7 +109,7 @@ numbers = five_f64s.into();
 ```
 
 ## TryFrom Enum
-The From trait will automatically be implemented on anonymous enums to support conversion from one anonymous enum to another. If the destination enum implements From for some of the variants of the source enum, then the destination enum implements TryFrom for the source enum. The two enums do not need to have the same arity. The TryFrom implementation servers the following functions:
+The TryFrom trait will automatically be implemented on anonymous enums to support conversion from one anonymous enum to another. If the destination enum implements From for some of the variants of the source enum, then the destination enum implements TryFrom for the source enum. The two enums do not need to have the same arity. The TryFrom implementation servers the following functions:
 * Reducing an enum, for example from a `enum(u32, u64, f32, f64)` into a `enum(f32, f64)`
 * Checking if two enums intersect, for example `enum(bool, u8, f32)` into `enum(bool, f32, String)`
 ```rust
