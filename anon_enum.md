@@ -170,16 +170,33 @@ for row in rs {
 }
 ```
 
-## Interactions with impl Trait
-Multiple anonymous types can be returned using anonymous enums and `impl Trait`. If the trait being returned is Product Safe and all branches are converted into an enum using the `.into()` function, then the return type will be an anonymous enum of the possible return types. Anonymous enums created in this fashion are entirely opaque, and can not be matched on.
+## Enum Impl Trait
+Enum Impl Trait would be analogous to the `impl Trait` feature already in rust. The function would return one enum that contains the different types the function could return as variants. Even though the return type is an enum, the variants are opaque, and as a result the enum can not be matched on using index or type matching. Enum Impl Trait will has the following functions:
+* Allow functions to return multiple anonymous types without needing allocation
+* Allow a function to simply return an opaque Error, with the ability to add more causes without modifying the header.
 ```rust
-fn return_iter(some_condition: bool) -> impl Iterator<Item=u64> {
+// Example in a normal function
+fn return_iter(some_condition: bool) -> enum impl Iterator<Item=u64> {
   if some_condition {
         (0..100).map(|x| x * 2).into()
     } else {
         (0..100).iter().rev().into()
     }
 }
+
+// Example in a flat_map
+vec!((0..100), (100..200))
+    .iter()
+    .flat_map(|line| -> enum impl Iterator {
+        if some_condition {
+            line.map(|x| x * 2).into()
+        } else {
+            line.iter().rev().into()
+        }
+    });
+
+// Example returning some Error type
+fn int_from_file() -> Result<i32, enum impl Error> { ... }
 ```
 # Teaching Anonymous Enums
 
