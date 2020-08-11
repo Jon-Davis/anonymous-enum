@@ -8,7 +8,7 @@ There are three primary use cases for Anonymous Enums
 1. Anonymous Enums can serve as enums for Anonymous Types. 
 
 ```rust
-fn return_iter(some_condition: bool) -> impl Iterator<Item=u64> {
+fn return_iter(some_condition: bool) -> enum impl Iterator<Item=u64> {
   if some_condition {
         (0..100).map(|x| x * 2).into()
     } else {
