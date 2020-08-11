@@ -74,7 +74,7 @@ The From trait will automatically be implemented on anonymous enums for all of t
 * Reduce the verbosity of assigning a type to a variant when the mapping is obvious.
 * Add support for the `?` operator allowing functions to propagate errors into an enum.
 ```rust
-// From will be implemented for enum(f32, f64)
+// From will be implemented for all types
 let mut floating_point : enum(f32, f64);
 floating_point = 32f32.into();
 floating_point = 64f64.into();
@@ -82,10 +82,15 @@ floating_point = 64f64.into();
 let mut no_from : enum(f32, T);
 // From will not be implemented as there is a duplicate type
 let mut no_from : enum(f32, f32);
-// From will be implemented for enum(f32, Vec<T>) as there is no overlap
+// From will be implemented for all types
 let mut floating_point : enum(f32, Vec<T>);
+floating_point = 32f32.into();
+floating_point = vec!(t).into();
+// From will be implemented only for f32
+let mut floating_point : enum(f32, Vec<T>, Vec<bool>);
+floating_point = 32f32.into();
 ```
-
+ 
 ## From Enum
 The From trait will automatically be implemented on anonymous enums to support conversion from one anonymous enum to another. If the destination enum implements From for all variants of the source enum, then the destination enum implements From for the source enum. The two enums do not need to have the same arity. The From implementation servers the following functions:
 *  Expanding an enum. For example from `enum(io::Error, ParseIntError)` to `enum(io::Error, ParseIntError, sql::Error)`
@@ -101,6 +106,16 @@ let mut numbers : enum(f32, f64, u32, u64);
 numbers = floating_points.into();
 numbers = unsigned.into();
 numbers = five_f64s.into();
+```
+
+## TryFrom Enum
+The From trait will automatically be implemented on anonymous enums to support conversion from one anonymous enum to another. If the destination enum implements From for some of the variants of the source enum, then the destination enum implements TryFrom for the source enum. The two enums do not need to have the same arity. The TryFrom implementation servers the following functions:
+* Reducing an enum, for example from a `enum(u32, u64, f32, f64)` into a `enum(f32, f64)`
+* Checking if two enums intersect, for example `enum(bool, u8, f32)` into `enum(bool, f32, String)`
+```rust
+let mut numbers : enum(f32, f64, u32, u64) = 5f32;
+let floating_points : enum(f32, f64) = numbers.try_into()?;
+let unsigned : enum(u32, u64) = numbers.try_into()?;
 ```
 
 ## Index Matching
