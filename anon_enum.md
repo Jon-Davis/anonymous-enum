@@ -180,7 +180,7 @@ fn return_iter(some_condition: bool) -> enum impl Iterator<Item=u64> {
   if some_condition {
         (0..100).map(|x| x * 2).into()
     } else {
-        (0..100).iter().rev().into()
+        (0..100).rev().into()
     }
 }
 
@@ -191,7 +191,7 @@ vec!((0..100), (100..200))
         if some_condition {
             line.map(|x| x * 2).into()
         } else {
-            line.iter().rev().into()
+            line.rev().into()
         }
     });
 
