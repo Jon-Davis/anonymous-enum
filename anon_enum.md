@@ -154,7 +154,7 @@ match e {
 ## Product Safe Traits
 Anonymous enums would introduce "Product Safe Traits". This would be an analogy to object safe traits. These are traits that would allow anonymous enums to implicitly derive any trait shared by all variants. Product Safe Traits  will has the following functions:
 * For error handling if all variants implement Error, then the enum can be used as an Error type for logging
-* Enums can be returned in `impl Trait` functions, such as those that return multiple Closures, Iterators, or Futures
+* This enables `enum impl Trait`
 ```rust
 // A "Try Catch" like type matching 
 match int_from_file() {
